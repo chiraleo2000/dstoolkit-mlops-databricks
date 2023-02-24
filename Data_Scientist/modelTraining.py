@@ -1,7 +1,4 @@
 # Databricks notebook source
-
-# COMMAND ----------
-
 # Modules.
 
 from pyspark.sql import *
@@ -29,6 +26,7 @@ namespace = p.parse_known_args(sys.argv[1:])[0]
 display(namespace)
 
 # COMMAND ----------
+
 if namespace.env is not None:
     display(namespace.env)
     params = yaml.safe_load(pathlib.Path(namespace.env).read_text())
@@ -43,12 +41,14 @@ else:
 
 
 # COMMAND ----------
+
 rounded_unix_timestamp_udf = udf(rounded_unix_timestamp, IntegerType())
 raw_data = spark.read.format("delta").load("/databricks-datasets/nyctaxi-with-zipcodes/subsampled")
 taxi_data = rounded_taxi_data(raw_data)
 display(taxi_data)
 
 # COMMAND ----------
+
 pickup_features_table = "feature_store_taxi_example.trip_pickup_features"
 dropoff_features_table = "feature_store_taxi_example.trip_dropoff_features"
 
@@ -70,6 +70,7 @@ dropoff_feature_lookups = [
 
 
 # COMMAND ----------
+
 mlflow.end_run()
 mlflow.start_run() 
 exclude_columns = ["rounded_pickup_datetime", "rounded_dropoff_datetime"]
@@ -94,7 +95,7 @@ features_and_label = training_df.columns
 # Collect data into a Pandas array for training
 data = training_df.toPandas()[features_and_label]
 
-train, test = train_test_split(data, random_state=123)
+train, test = train_test_split(data, random_state=426)
 X_train = train.drop(["fare_amount"], axis=1)
 X_test = test.drop(["fare_amount"], axis=1)
 y_train = train.fare_amount
@@ -104,8 +105,8 @@ mlflow.lightgbm.autolog()
 train_lgb_dataset = lgb.Dataset(X_train, label=y_train.values)
 test_lgb_dataset = lgb.Dataset(X_test, label=y_test.values)
 
-param = {"num_leaves": 32, "objective": "regression", "metric": "rmse"}
-num_rounds = 100
+param = {"num_leaves": 64, "objective": "regression", "metric": "rmse"}
+num_rounds = 200
 
 # Train a lightGBM model
 model = lgb.train(
@@ -114,6 +115,7 @@ model = lgb.train(
 
 
 # COMMAND ----------
+
 fs.log_model(
   model,
   artifact_path="model_packaged",
@@ -123,6 +125,7 @@ fs.log_model(
 )
 
 # COMMAND ----------
+
 pyfunc_model = fareClassifier(model)
 
 # End the current MLflow run and start a new one to log the new pyfunc model
@@ -136,5 +139,3 @@ with mlflow.start_run() as run:
       training_set=training_set,
       registered_model_name="pyfunc_taxi_fare_packaged",
   )
-
-# COMMAND ----------
